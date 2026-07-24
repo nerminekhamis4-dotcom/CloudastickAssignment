@@ -1,0 +1,17 @@
+public class ProductWrapper_abc {
+    public String id;    
+    public String name;    
+    public String sku;    
+    public Decimal unitPrice;    
+    public Integer quantityOnHand; 
+
+    public class CartItemRequest_abc {  
+        public String productId;    
+        public Integer quantity; 
+}   
+public class CartRequest_abc {
+    public String customerId;    
+    public String sessionId;   
+    public List<CartItemRequest_abc> items; 
+}
+}
