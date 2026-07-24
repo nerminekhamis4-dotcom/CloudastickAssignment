@@ -1,0 +1,60 @@
+@RestResource(urlMapping='/abc/cart/*/items')
+global with sharing class CartItemRestService_abc {
+
+    // POST /services/apexrest/abc/cart/{cartId}/items -> add product(s) to an existing cart
+    @HttpPost
+    global static void addItems() {
+        RestRequest req = RestContext.request;
+        RestResponse res = RestContext.response;
+        res.addHeader('Content-Type', 'application/json');
+        String rawBody = req.requestBody.toString();
+
+        try {
+            // cartId comes from the URL segment before /items
+            String[] uriParts = req.requestURI.split('/');
+            String cartId = uriParts[uriParts.size() - 2];
+
+            List<Cart_abc__c> carts = [SELECT Id, Status__c FROM Cart_abc__c WHERE Id = :cartId];
+            if (carts.isEmpty()) {
+                throw new RestServiceException('Cart not found: ' + cartId);
+            }
+            if (carts[0].Status__c != 'Active') {
+                throw new RestServiceException('Cart is not active');
+            }
+
+            List<ProductWrapper_abc.CartItemRequest_abc> items =
+                (List<ProductWrapper_abc.CartItemRequest_abc>) JSON.deserialize(rawBody, List<ProductWrapper_abc.CartItemRequest_abc>.class);
+
+            List<Cart_Item__c> lines = new List<Cart_Item__c>();
+            for (ProductWrapper_abc.CartItemRequest_abc item : items) {
+                if (item.quantity == null || item.quantity <= 0) {
+                    throw new RestServiceException('Quantity must be greater than 0');
+                }
+                lines.add(new Cart_Item__c(
+                    Cart__c = cartId,
+                    Product_abc__c = item.productId,
+                    Quantity__c = item.quantity
+                ));
+            }
+
+            insert lines;
+
+            String jsonOut = JSON.serialize(new Map<String,Object>{'itemsAdded' => lines.size()});
+            res.responseBody = Blob.valueOf(jsonOut);
+            res.statusCode = 201;
+
+            LoggerUtil_abc.log('/abc/cart/items', rawBody, jsonOut, 201, 'INFO', 'Items added');
+
+        } catch (RestServiceException ve) {
+            res.statusCode = 400;
+            String errJson = JSON.serialize(new Map<String,String>{'error' => ve.getMessage()});
+            res.responseBody = Blob.valueOf(errJson);
+            LoggerUtil_abc.log('/abc/cart/items', rawBody, errJson, 400, 'ERROR', ve.getMessage());
+        } catch (Exception e) {
+            res.statusCode = 500;
+            String errJson = JSON.serialize(new Map<String,String>{'error' => 'Internal error'});
+            res.responseBody = Blob.valueOf(errJson);
+            LoggerUtil_abc.log('/abc/cart/items', rawBody, errJson, 500, 'ERROR', e.getMessage());
+        }
+    }
+}
