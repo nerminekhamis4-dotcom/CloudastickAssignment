@@ -1,0 +1,43 @@
+@RestResource(urlMapping='/abc/products/*')
+    global with sharing class ProductRestService_phm {
+        
+@HttpGet
+global static void getProducts() {
+    RestRequest req = RestContext.request;
+    RestResponse res = RestContext.response;
+    res.addHeader('Content-Type', 'application/json');
+    
+    try {
+        List<Product_abc__c> products = [
+             SELECT Id, Name, SKU_abc__c,Price_abc__c, Quantity_Available_abc__c
+             FROM Product_abc__c
+             WHERE Active_abc__c = true
+             ORDER BY Name ASC
+             LIMIT 200
+        ];
+
+        List<ProductWrapper_abc> output = new List<ProductWrapper_abc>();
+        for (Product_abc__c p : products) {
+            ProductWrapper_abc w = new ProductWrapper_abc();
+            w.id = p.Id;
+            w.name = p.Name;
+            w.sku = p.SKU_abc__c;
+            w.UnitPrice = p.Price_abc__c;
+            w.quantityOnHand = (Integer) p.Quantity_Available_abc__c;
+            output.add(w);
+         }
+        
+         String jsonOut = JSON.serialize(output);
+         res.responseBody = Blob.valueOf(jsonOut);
+         res.statusCode = 200;
+
+         LoggerUtil_abc.log('/abc/products', '', jsonOut, 200, 'INFO', 'Product list returned');
+          
+             } catch (Exception e) {
+         res.statusCode = 500;
+         String errorJson = JSON.serialize(new Map<String,String>{'error' => e.getMessage()});
+         res.responseBody = Blob.valueOf(errorJson);
+         LoggerUtil_abc.log('/abc/products', '', errorJson, 500, 'ERROR', e.getMessage());
+      }
+  }
+                            }
