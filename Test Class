@@ -1,0 +1,160 @@
+@isTest
+private class ProductRestServiceTest{
+    
+    
+          @isTest static void testGetProducts() {
+               insert new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10, Quantity_Available_abc__c=100, Active_abc__c= true);
+               RestRequest req = new RestRequest();
+               req.requestURI = '/services/apexrest/abc/products';
+               req.httpMethod = 'GET';
+               RestContext.request = req;
+               RestContext.response = new RestResponse();
+               Test.startTest();
+               ProductRestService_phm.getProducts();
+               Test.stopTest();
+               System.assertEquals(200, RestContext.response.statusCode);
+         }
+       
+
+    
+          @isTest static void CartRestServiceTest_abc() {
+              Product_abc__c p = new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10, Active_abc__c= true);
+              insert p;
+
+              Map<String,Object> body = new Map<String,Object>{
+                   'sessionId' => 'sess-123',
+                   'items' => new List<Object>{ new Map<String,Object>{'productId'=>p.Id,'quantity'=>2}}
+              };
+
+              RestRequest req = new RestRequest();
+              req.requestURI = '/services/apexrest/abc/cart';
+              req.httpMethod = 'POST';
+              req.requestBody = Blob.valueOf(JSON.serialize(body));
+              RestContext.request = req;
+              RestContext.response = new RestResponse();
+              Test.startTest();
+              CartRestService_abc.createCart();
+                            
+              Test.stopTest();
+              System.assertEquals(201, RestContext.response.statusCode);
+       }
+    
+    
+
+    @isTest static void testCreateCartMissingSessionId() {
+       RestRequest req = new RestRequest();
+       req.requestURI = '/services/apexrest/abc/cart';
+       req.httpMethod = 'POST';
+       req.requestBody = Blob.valueOf(JSON.serialize(new Map<String,Object>{'items'=>new List<Object>()}));
+       RestContext.request = req;
+       RestContext.response = new RestResponse();
+       Test.startTest();
+       CartRestService_abc.createCart();
+       Test.stopTest();
+        System.assertEquals(400, RestContext.response.statusCode);
+    }
+    
+
+    
+  
+         @isTest static void OrderArchivalBatchTest_abc() {
+           Customer_abc__c cust = new Customer_abc__c(Name='Jane Doe');
+           insert cust;
+
+           Product_abc__c p = new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10);
+           insert p;
+
+           Order_abc__c o = new Order_abc__c(
+           Customer_abc__c = cust.Id,
+           Status__c = 'Delivered',
+           Order_Date_abc__c = Date.today().addYears(-2)
+      );
+      insert o;
+
+           insert new Order_Line_abc__c(Order_abc__c=o.Id, Product_abc__c=p.Id, Quantity_abc__c=5);
+           Test.startTest();
+           Database.executeBatch(new OrderArchivalBatch_abc());
+           Test.stopTest();
+
+             // Big Objects aren't queryable in the same transaction reliably in tests;
+             // assert on Log__c instead to confirm batch ran
+             List<Log__c> logs = [SELECT Id FROM Log__c WHERE Endpoint_abc__c = 'OrderArchivalBatch_abc'];
+             System.assert(!logs.isEmpty());
+          }
+       
+            @isTest static void testCreateCartInvalidQuantity() {
+        Product_abc__c p = new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10, Active_abc__c=true);
+        insert p;
+
+        Map<String,Object> body = new Map<String,Object>{
+            'sessionId' => 'sess-456',
+            'items' => new List<Object>{ new Map<String,Object>{'productId'=>p.Id,'quantity'=>0} }
+        };
+
+        RestRequest req = new RestRequest();
+        req.requestURI = '/services/apexrest/abc/cart';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(JSON.serialize(body));
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        Test.startTest();
+        CartRestService_abc.createCart();
+        Test.stopTest();
+        System.assertEquals(400, RestContext.response.statusCode);
+    }
+
+    // NEW — covers the generic catch(Exception e) 500 branch (lines 63-68) via malformed JSON
+    @isTest static void testCreateCartMalformedJson() {
+        RestRequest req = new RestRequest();
+        req.requestURI = '/services/apexrest/abc/cart';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf('{not valid json');
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        Test.startTest();
+        CartRestService_abc.createCart();
+        Test.stopTest();
+        System.assertEquals(500, RestContext.response.statusCode);
+    }
+
+    @isTest static void testAddItemsToCart() {
+        Product_abc__c p = new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10, Active_abc__c=true);
+        insert p;
+
+        Cart_abc__c cart = new Cart_abc__c(Session_Id_abc__c='sess-999', Status__c='Active');
+        insert cart;
+
+        List<Object> items = new List<Object>{
+            new Map<String,Object>{'productId'=>p.Id,'quantity'=>3}
+        };
+
+        RestRequest req = new RestRequest();
+        req.requestURI = '/services/apexrest/abc/cart/' + cart.Id + '/items';
+        req.httpMethod = 'POST';
+        req.requestBody = Blob.valueOf(JSON.serialize(items));
+        RestContext.request = req;
+        RestContext.response = new RestResponse();
+        Test.startTest();
+        CartItemRestService_abc.addItems();
+        Test.stopTest();
+        System.assertEquals(201, RestContext.response.statusCode);
+    }               
+
+    
+          @isTest static void OrderWarehouseControllerTest_abc() {
+              Product_abc__c p = new Product_abc__c(Name='Aspirin', SKU_abc__c='SKU1', Price_abc__c=10, Active_abc__c=true);
+              insert p;
+
+              Order_abc__c o = new Order_abc__c(Status__c='In delivery', Order_Date_abc__c=Date.today());
+              insert o;
+
+              insert new Order_Line_abc__c(Order_abc__c=o.Id, Product_abc__c=p.Id, Quantity_abc__c=5);
+              
+              Test.startTest();
+              OrderWarehouseController_abc ctrl = new OrderWarehouseController_abc();
+              Test.stopTest();
+
+              System.assertEquals(1, ctrl.orderWrappers.size());
+              System.assertEquals(' ', ctrl.orderWrappers[0].icon);
+           }
+}
