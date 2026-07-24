@@ -1,0 +1,61 @@
+public with sharing class OrderWarehouseController_abc {
+
+    public List<OrderWrapper> orderWrappers { get; set; }
+
+    public OrderWarehouseController_abc() {
+        orderWrappers = new List<OrderWrapper>();
+        Date today = Date.today();
+
+        List<Order_abc__c> orders = [
+           SELECT Id, Name, Status__c, Effective_Date_abc__c, Order_Date_abc__c,
+                  (SELECT Product_abc__r.Name, Quantity_abc__c, Unit_Price_abc__c FROM Order_Lines__r)
+            FROM Order_abc__c
+           ORDER BY Order_Date_abc__c DESC
+           LIMIT 200
+       ];
+                   
+       for (Order_abc__c o : orders) {
+          OrderWrapper w = new OrderWrapper();
+          w.orderId = o.Id;
+          w.orderNumber = o.Name;
+          w.status = o.Status__c;
+          w.effectiveDate = o.Effective_Date_abc__c;
+          w.icon = resolveIcon(o, today);
+          w.items = new List<ItemWrapper>();
+          for (Order_Line_abc__c line : o.Order_Lines__r) {
+             ItemWrapper iw = new ItemWrapper();
+             iw.productName = line.Product_abc__r.Name;
+             iw.quantity = line.Quantity_abc__c;
+             iw.unitPrice = line.Unit_Price_abc__c;
+             w.items.add(iw);
+      }
+      orderWrappers.add(w);
+    }
+}
+ 
+ 
+private String resolveIcon(Order_abc__c o, Date today) {
+    // Status-based icons take priority over date-based icons
+    if (o.Status__c == 'In delivery') return ' ';
+    if (o.Status__c == 'Delivered') return ' ';
+    if (o.Order_Date_abc__c == today) return ' ';
+    if (o.Order_Date_abc__c < today) return ' ';
+    return '';
+}
+
+public class OrderWrapper {
+     public Id orderId { get; set; }
+     public String orderNumber { get; set; }
+     public String status { get; set; }
+     public Date effectiveDate { get; set; }
+     public String icon { get; set; }
+     public List<ItemWrapper> items { get; set; }
+}
+
+public class ItemWrapper {
+     public String productName { get; set; }
+     public Decimal quantity { get; set; }
+     public Decimal unitPrice { get; set; }
+  }
+}
+ 
