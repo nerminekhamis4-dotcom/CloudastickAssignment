@@ -1,0 +1,70 @@
+@RestResource(urlMapping='/abc/cart/*')
+global with sharing class CartRestService_abc {
+// POST /services/apexrest/abc/cart -> creates a new cart (optionally with initial items)
+
+    @HttpPost
+global static void createCart() {
+     RestRequest req = RestContext.request;
+     RestResponse res = RestContext.response;
+     res.addHeader('Content-Type', 'application/json');
+     String rawBody = req.requestBody.toString();
+
+     try {
+         ProductWrapper_abc.CartRequest_abc input = (ProductWrapper_abc.CartRequest_abc) JSON.deserialize(rawBody, ProductWrapper_abc.CartRequest_abc.class);
+             
+      
+     if (String.isBlank(input.sessionId)) {
+         throw new RestServiceException('sessionId is required');
+   }
+
+     Cart_abc__c cart = new Cart_abc__c(
+        Session_Id_abc__c = input.sessionId,
+        Status__c = 'Active'
+   );
+    
+    if (String.isNotBlank(input.customerId)) {
+         cart.Customer_abc__c = input.customerId;
+  }
+
+    insert cart;
+        
+    List<Cart_Item__c> lines = new List<Cart_Item__c>();
+    if (input.items != null) {
+        for (ProductWrapper_abc.CartItemRequest_abc item : input.items) {
+            if (item.quantity == null || item.quantity <= 0) {
+                throw new RestServiceException('Quantity must be greater than 0') ;
+                    }
+         
+            lines.add(new Cart_Item__c(
+                Cart__c = cart.Id,
+                Product_abc__c = item.productId,
+                Quantity__c = item.quantity
+        ));
+   }
+         if (!lines.isEmpty()) insert lines;
+  }
+    Map<String,Object> output = new Map<String,Object>{
+         'cartId' => cart.Id,
+         'sessionId' => cart.Session_Id_abc__c,
+         'itemsAdded' => lines.size()
+   };
+    
+       String jsonOut = JSON.serialize(output);
+       res.responseBody = Blob.valueOf(jsonOut);
+       res.statusCode = 201;
+    
+       LoggerUtil_abc.log('/abc/cart', rawBody, jsonOut, 201, 'INFO', 'Cart created');
+    
+   } catch (RestServiceException ve) {
+        res.statusCode = 400;
+        String errJson = JSON.serialize(new Map<String,String>{'error' => ve.getMessage()});
+        res.responseBody = Blob.valueOf(errJson);
+        LoggerUtil_abc.log('/abc/cart', rawBody, errJson, 400, 'ERROR', ve.getMessage());
+   } catch (Exception e) {
+       res.statusCode = 500;
+       String errJson = JSON.serialize(new Map<String,String>{'error' => 'Internal error'});
+       res.responseBody = Blob.valueOf(errJson);
+       LoggerUtil_abc.log('/abc/cart', rawBody, errJson, 500, 'ERROR', e.getMessage()) ;
+           }
+}            
+  }
