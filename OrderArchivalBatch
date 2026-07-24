@@ -1,0 +1,54 @@
+global class OrderArchivalBatch_abc implements Database.Batchable<sObject>, Database.Stateful {
+
+     global Integer archivedCount = 0;
+
+     global Database.QueryLocator start(Database.BatchableContext bc) {
+         Date cutoff = Date.today().addYears(-1);
+         return Database.getQueryLocator([
+             SELECT Id, Name, Status__c, Order_Date_abc__c, Customer_abc__r.Name,
+                    (SELECT Product_abc__r.Name, Quantity_abc__c, Unit_Price_abc__c FROM Order_Lines__r)
+             FROM Order_abc__c
+             WHERE Status__c = 'Delivered'
+             AND Order_Date_abc__c < :cutoff
+          ]);
+     }
+
+     global void execute(Database.BatchableContext bc, List<Order_abc__c> scope) {
+          List<Archived_Order__b> bigObjRecords = new List<Archived_Order__b>();
+
+          for (Order_abc__c o : scope) {
+               List<Map<String,Object>> itemJson = new List<Map<String,Object>>();
+               for (Order_Line_abc__c line : o.Order_Lines__r) {
+                    itemJson.add(new Map<String,Object>{
+                       'product' => line.Product_abc__r.Name,
+                       'quantity' => line.Quantity_abc__c,
+                       'unitPrice' => line.Unit_Price_abc__c
+                    });
+               }
+
+              bigObjRecords.add(new Archived_Order__b(
+                  OrderId_abc__c = o.Id,
+                  OrderNumber_abc__c = o.Name,
+                  CustomerName_abc__c = o.Customer_abc__r != null ? o.Customer_abc__r.Name : null,
+                  Status_abc__c = o.Status__c,
+                  OrderItemsJSON_abc__c = JSON.serialize(itemJson),
+                  ArchivedDate_abc__c = System.now()
+               ));
+            }
+    
+            try {
+                Database.insertImmediate(bigObjRecords);
+                archivedCount += bigObjRecords.size();
+            } catch (Exception e) {
+               LoggerUtil_abc.log('OrderArchivalBatch_abc', '', '', 500, 'ERROR',
+                   'Big object insert failed: ' + e.getMessage());
+            }
+         }
+    
+global void finish(Database.BatchableContext bc) {
+          LoggerUtil_abc.log('OrderArchivalBatch_abc', '', '', 200, 'INFO',
+             'Batch finished. Total archived: ' + archivedCount);
+           // Optional: delete original Order_abc__c + Order_Line_abc__c records here once archived
+      }
+}
+             
