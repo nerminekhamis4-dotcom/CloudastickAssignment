@@ -1,0 +1,44 @@
+<apex:page controller="OrderWarehouseController_abc" sidebar="false">
+<style>
+.expandRow { display:none; background:#f8f8f8; }
+.toggleBtn { cursor:pointer; color:#0070d2; }
+</style>
+<apex:form>
+<h2>Warehouse — Order View</h2>
+<table class="list" width="100%" border="1" cellpadding="6">
+<tr>
+<th>Order #</th><th>Status</th><th>Effective Date</th>
+</tr>
+<apex:repeat value="{!orderWrappers}" var="o">
+<tr>
+<td>
+<span class="toggleBtn" onclick="toggleRow('{!o.orderId}')">▶</span>
+{!o.icon} {!o.orderNumber}
+</td>
+    <td>{!o.status}</td>
+<td><apex:outputText value="{0,date,MM/dd/yyyy}"><apex:param value="{!o.effectiveDate}"/></apex:outputText></td>
+    </tr>
+<tr id="row_{!o.orderId}" class="expandRow">
+<td colspan="3">
+<table width="100%" border="1" cellpadding="4">
+<tr><th>Product</th><th>Quantity</th><th>Unit Price</th></tr>
+<apex:repeat value="{!o.items}" var="i">
+<tr>
+<td>{!i.productName}</td>
+<td>{!i.quantity}</td>
+    <td><apex:outputText value="{0,number,currency}"><apex:param value="{!i.unitPrice}"/></apex:outputText></td>
+    </tr>
+</apex:repeat>
+</table>
+</td>
+</tr>
+</apex:repeat>
+</table>
+</apex:form>
+<script>
+function toggleRow(id) {
+var row = document.getElementById('row_' + id);
+row.style.display = (row.style.display === 'table-row') ? 'none' : 'table-row';
+}
+</script>
+</apex:page>
